@@ -15,6 +15,7 @@ const (
 	LESSGREATER
 	SUM
 	PRODUCT
+	ASSIGN
 	PREFIX
 	CALL
 )
@@ -28,6 +29,7 @@ var precedences = map[token.TokenType]int{
 	token.MINUS:    SUM,
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
+	token.ASSIGN:   ASSIGN,
 	token.LPAREN:   CALL,
 }
 
@@ -203,6 +205,13 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	}
 	il.Value = value
 	return il
+}
+
+func (p *Parser) parseStringLiteral() ast.Expression {
+	return &ast.StringLiteral{
+		Token: p.curToken,
+		Value: p.curToken.Literal,
+	}
 }
 
 func (p *Parser) parseBoolean() ast.Expression {
@@ -419,6 +428,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
+	p.registerPrefix(token.STRING, p.parseStringLiteral)
 
 	//前缀表达式运算符
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
@@ -442,6 +452,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
+	p.registerInfix(token.ASSIGN, p.parseInfixExpression)
 
 	//call fn
 	p.registerInfix(token.LPAREN, p.parseCallExpression)

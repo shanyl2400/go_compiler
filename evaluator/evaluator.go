@@ -11,6 +11,34 @@ var (
 	FALSE = &object.Boolean{Value: false}
 
 	NULL = &object.Null{}
+
+	builtins = map[string]*object.Builtin{
+		"len": {
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return newError("wrong number of arguments. got=%d, want=1", len(args))
+				}
+				switch arg := args[0].(type) {
+				case *object.String:
+					return &object.Integer{Value: int64(len(arg.Value))}
+				}
+				return newError("argument to `len` not supported, got %s", args[0].Type())
+			},
+		},
+		"put": {
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return newError("wrong number of arguments. got=%d, want=1", len(args))
+				}
+				switch arg := args[0].(type) {
+				case *object.String:
+					fmt.Println(arg.Value)
+					return nil
+				}
+				return newError("argument to `len` not supported, got %s", args[0].Type())
+			},
+		},
+	}
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -20,6 +48,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return &object.Integer{Value: node.Value}
 	case *ast.Boolean:
 		return nativeBooleanObject(node.Value)
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	//if
@@ -148,12 +178,18 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 	switch {
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringInfixExpression(operator, left, right)
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	case operator == "==":
 		return nativeBooleanObject(left == right)
 	case operator == "!=":
 		return nativeBooleanObject(left != right)
+	case operator == "=" && right.Type() == object.BOOLEAN_OBJ && left.Type() == object.BOOLEAN_OBJ:
+		l := left.(*object.Boolean)
+		l.Value = right.(*object.Boolean).Value
+		return &object.Boolean{Value: l.Value}
 	}
 	return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 }
@@ -170,6 +206,21 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	return FALSE
 }
 
+func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
+	switch operator {
+	case "+":
+		leftVal := left.(*object.String).Value
+		rightVal := right.(*object.String).Value
+		return &object.String{Value: leftVal + rightVal}
+	case "=":
+		l := left.(*object.String)
+		l.Value = right.(*object.String).Value
+		return &object.String{Value: l.Value}
+	}
+	return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+
+}
+
 func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
 	leftVal := left.(*object.Integer).Value
 	rightVal := right.(*object.Integer).Value
@@ -183,7 +234,10 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 		return &object.Integer{Value: leftVal * rightVal}
 	case "/":
 		return &object.Integer{Value: leftVal / rightVal}
-
+	case "=":
+		l := left.(*object.Integer)
+		l.Value = rightVal
+		return &object.Integer{Value: rightVal}
 	case ">":
 		return nativeBooleanObject(leftVal > rightVal)
 	case "<":
@@ -205,22 +259,29 @@ func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 	return &object.Integer{Value: -value}
 }
 func evalIdentifier(i *ast.Identifier, env *object.Environment) object.Object {
-	val, ok := env.Get(i.Value)
-	if !ok {
-		return newError("identifier not found: " + i.Value)
+	if val, ok := env.Get(i.Value); ok {
+		return val
 	}
-	return val
+
+	if builtin, ok := builtins[i.Value]; ok {
+		return builtin
+	}
+
+	return newError("identifier not found: " + i.Value)
+
 }
 
 func applyFunction(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
-		return newError("not a function: %s", fn.Type())
-	}
-	extendedEnv := extendFunctionEnv(function, args)
-	evaluted := Eval(function.Body, extendedEnv)
+	switch function := fn.(type) {
+	case *object.Function:
+		extendedEnv := extendFunctionEnv(function, args)
+		evaluted := Eval(function.Body, extendedEnv)
 
-	return unwrapReturnValue(evaluted)
+		return unwrapReturnValue(evaluted)
+	case *object.Builtin:
+		return function.Fn(args...)
+	}
+	return newError("not a function: %s", fn.Type())
 }
 
 func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
