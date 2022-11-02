@@ -19,13 +19,16 @@ const (
 
 	COMMA     = ","
 	SEMICOLON = ";"
+	COLON     = ":"
 
-	LPAREN = "("
-	RPAREN = ")"
-	LBRACE = "{"
-	RBRACE = "}"
-	LT     = "<"
-	GT     = ">"
+	LPAREN   = "("
+	RPAREN   = ")"
+	LBRACE   = "{"
+	RBRACE   = "}"
+	LT       = "<"
+	GT       = ">"
+	LBRACKET = "["
+	RBRACKET = "]"
 
 	EQ     = "=="
 	NOT_EQ = "!="
