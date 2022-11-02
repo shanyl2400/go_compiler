@@ -48,6 +48,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	//if
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
+	//while
+	case *ast.WhileStatement:
+		return evalWhileExpression(node, env)
 	// expression
 	case *ast.PrefixExpression:
 		right := Eval(node.Right, env)
@@ -156,6 +159,16 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
 	return NULL
 }
 
+func evalWhileExpression(we *ast.WhileStatement, env *object.Environment) object.Object {
+	condition := Eval(we.Condition, env)
+	var out object.Object
+	for condition.Type() == object.BOOLEAN_OBJ && condition.Inspect() == "true" {
+		out = Eval(we.Consequence, env)
+		condition = Eval(we.Condition, env)
+	}
+	return out
+}
+
 func evalHashLiteral(node *ast.HashLiteral, env *object.Environment) object.Object {
 	pairs := make(map[object.HashKey]object.HashPair)
 
@@ -207,14 +220,6 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return nativeBooleanObject(left == right)
 	case operator == "!=":
 		return nativeBooleanObject(left != right)
-	case operator == "=" && right.Type() == object.BOOLEAN_OBJ && left.Type() == object.BOOLEAN_OBJ:
-		l := left.(*object.Boolean)
-		l.Value = right.(*object.Boolean).Value
-		return &object.Boolean{Value: l.Value}
-	case operator == "=" && right.Type() == object.ARRAY_OBJ && left.Type() == object.ARRAY_OBJ:
-		l := left.(*object.Array)
-		l.Elements = right.(*object.Array).Elements
-		return &object.Array{Elements: l.Elements}
 	}
 	return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 }
@@ -259,10 +264,6 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 		return &object.Integer{Value: leftVal * rightVal}
 	case "/":
 		return &object.Integer{Value: leftVal / rightVal}
-	case "=":
-		l := left.(*object.Integer)
-		l.Value = rightVal
-		return &object.Integer{Value: rightVal}
 	case ">":
 		return nativeBooleanObject(leftVal > rightVal)
 	case "<":
